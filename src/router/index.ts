@@ -9,9 +9,9 @@ import {useUserStore} from "@/stores/userStore.ts";
 const routes = [
     { path: '/', redirect: '/home' },
     { path: '/login', component: Login },
-    // { path: '/home', component: Home },
+    { path: '/home', component: Home },
     { path: '/add-expense', component: AddExpense },
-    { path: '/home', component: ExpenseList },
+    { path: '/list', component: ExpenseList },
     { path: '/stats', component: Stats }
 ]
 

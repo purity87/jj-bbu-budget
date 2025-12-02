@@ -1,27 +1,29 @@
 <template>
   <div class="pt-4">
-    <!-- 상단: 지출 추가 버튼 -->
+    <!-- 상단 바로가기 버튼 -->
     <div class="shortcut-btns mb-4">
       <button @click="goAddExpense" class="btn btn-primary w-full">
         지출 추가
       </button>
     </div>
 
-    <h2>지출 목록</h2>
-
-    <!-- 로딩 상태 -->
-    <div v-if="expenseStore.loading">로딩 중...</div>
-
-    <!-- 데이터 없음 메시지 -->
-    <div v-else-if="expenseStore.expenses.length === 0" class="text-center text-gray-500 mt-4">
-      지출 데이터가 없습니다.
-    </div>
-
-    <!-- 지출 리스트 -->
-    <div v-else>
-    </div>
+    <!-- 달력 컴포넌트 -->
+    <MonthlyCalendar />
   </div>
 </template>
 
 <script setup lang="ts">
+import { useRouter } from 'vue-router'
+import MonthlyCalendar from '@/components/MonthlyCalendar.vue'
+
+const router = useRouter()
+
+// 지출 추가 화면 이동
+const goAddExpense = () => {
+  router.push('/add-expense')
+}
 </script>
+
+<style scoped>
+/* 필요한 경우 추가 스타일 */
+</style>

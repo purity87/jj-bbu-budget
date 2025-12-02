@@ -60,14 +60,13 @@ const addExpense = async () => {
 
   try {
     const expenseData = {
-      budget_id: userStore.currentBudget.id,
-      category_id: categoryId.value,
+      budget_id: userStore.currentBudget.budget_id,
+      category_id: Number(categoryId.value),
       amount: amount.value,
       memo: memo.value,
       date: date.value,
       created_by: userStore.user?.id
     }
-    console.log('>>expenseData>> ', expenseData)
     await expenseStore.addExpense(expenseData)
     console.log('지출 추가 성공')
 

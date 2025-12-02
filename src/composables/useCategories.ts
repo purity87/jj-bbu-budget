@@ -1,10 +1,10 @@
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 import { supabase } from '@/composables/useSupabase'
 
-export function useCategories() {
-    const categories = ref<{ id: number; name: string }[]>([])
+export const categories = ref<{id: number, name: string}[]>([])
 
-    const loadCategories = async () => {
+export const useCategories = () => {
+    const fetchCategories = async () => {
         const { data, error } = await supabase
             .from('categories')
             .select('*')
@@ -12,7 +12,5 @@ export function useCategories() {
         if (!error && data) categories.value = data
     }
 
-    onMounted(loadCategories)
-
-    return { categories, loadCategories }
+    return { categories, fetchCategories }
 }

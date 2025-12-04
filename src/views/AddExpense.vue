@@ -1,86 +1,150 @@
 <template>
-  <div class="pt-4" v-if="userStore.currentBudget">
-    <h2>지출 추가</h2>
-    <div class="card">
-      <select v-model="categoryId" class="input mb-2">
-        <option value="" disabled>카테고리 선택</option>
-        <option v-for="c in categories" :key="c.id" :value="c.id">{{ c.name }}</option>
-      </select>
+  <div class="pt-4">
+    <h2>이번 달 달력</h2>
 
-      <input v-model="amount" type="number" placeholder="금액" class="input mb-2" />
-      <input v-model="memo" placeholder="메모" class="input mb-2" />
-      <input v-model="date" type="date" class="input mb-4" />
+    <!-- 로딩 & 에러 -->
+    <div v-if="expenseStore.loading">로딩 중...</div>
+    <div v-else-if="expenseStore.error" class="text-red-500">{{ expenseStore.error }}</div>
 
-      <button @click="addExpense" class="btn btn-primary w-full">추가</button>
-      <p class="text-sm text-red-500 mt-2" v-if="error">{{ error }}</p>
+    <!-- 달력 -->
+    <div v-else class="calendar-container">
+      <v-calendar
+          is-expanded
+          :attributes="calendarAttributes"
+          :min-date="startOfMonth"
+          :max-date="endOfMonth"
+          @dayclick="selectDate"
+      />
     </div>
-  </div>
 
-  <div v-else>
-    현재 가계부를 로딩 중입니다...
+    <!-- 선택 날짜 상세 -->
+    <div v-if="selectedDateExpenses.length > 0" class="mt-4">
+      <h3>{{ selectedDate }} 상세 지출</h3>
+      <div v-for="exp in selectedDateExpenses" :key="exp.id" class="card mb-2">
+        <p>{{ categoriesMap[exp.category_id] || 'Unknown' }} - {{ exp.amount }}원</p>
+        <p class="text-gray-500">{{ exp.memo || '-' }}</p>
+      </div>
+    </div>
+
+    <div v-else-if="selectedDate" class="text-gray-500 mt-2">
+      선택한 날짜에 지출이 없습니다.
+    </div>
+
+    <!-- 이번 달 총합 -->
+    <div class="mt-4 p-4 bg-gray-100 rounded">
+      <p>이번 달 총 수입: {{ totalIncome }}원</p>
+      <p>이번 달 총 지출: {{ totalExpense }}원</p>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import dayjs from 'dayjs'
 import { useExpenseStore } from '@/stores/expenseStore'
-import { useUserStore } from '@/stores/userStore'
-import { supabase } from '@/composables/useSupabase'
-import { useRouter } from 'vue-router'
+import { useCategories } from '@/composables/useCategories'
 
-const userStore = useUserStore()
 const expenseStore = useExpenseStore()
-const router = useRouter()
+const { categories, fetchCategories } = useCategories()
 
-const categories = ref<{id: string, name: string}[]>([])
-const categoryId = ref<string>('')
-const amount = ref<number | null>(null)
-const memo = ref('')
-const date = ref('')
-const error = ref('')
+const selectedDate = ref<string | null>(null)
+const startOfMonth = dayjs().startOf('month').toDate()
+const endOfMonth = dayjs().endOf('month').toDate()
 
-// 카테고리 로드
-onMounted(async () => {
-  const { data, error: catError } = await supabase.from('categories').select('*').eq('type', '지출')
-  if (!catError && data) categories.value = data
-  else console.error('카테고리 로드 실패', catError)
+// category_id → name 매핑
+const categoriesMap = computed(() => {
+  const map: Record<number, string> = {}
+  categories.value.forEach(c => { map[c.id] = c.name })
+  return map
 })
 
-// 지출 추가
-const addExpense = async () => {
-  if (!userStore.currentBudget) {
-    error.value = '선택된 가계부가 없습니다.'
-    return
-  }
+// 선택 날짜의 지출
+const selectedDateExpenses = computed(() => {
+  if (!selectedDate.value) return []
+  return expenseStore.expenses.filter(e => e.date === selectedDate.value)
+})
 
-  if (!categoryId.value || !amount.value || !date.value) {
-    error.value = '필수 값을 입력해주세요.'
-    return
-  }
+// 달력 dot 표시 (총 지출)
+const calendarAttributes = computed(() => {
+  const attr: any[] = []
 
-  try {
-    const expenseData = {
-      budget_id: userStore.currentBudget.budget_id,
-      category_id: Number(categoryId.value),
-      amount: amount.value,
-      memo: memo.value,
-      date: date.value,
-      created_by: userStore.user?.id
-    }
-    await expenseStore.addExpense(expenseData)
-    console.log('지출 추가 성공')
+  // 날짜별 지출 합계 계산
+  const dailyExpenseMap: Record<string, number> = {}
+  expenseStore.expenses.forEach(e => {
+    if (!dailyExpenseMap[e.date]) dailyExpenseMap[e.date] = 0
+    dailyExpenseMap[e.date] += e.amount || 0
+  })
 
-    // 추가 후 리스트 화면으로 이동
-    router.push('/home')
-  } catch (err) {
-    console.error('지출 추가 실패', err)
-    error.value = '지출 추가에 실패했습니다.'
-  }
+  Object.entries(dailyExpenseMap).forEach(([date, total]) => {
+    attr.push({
+      key: date,
+      dates: new Date(date),
+      dot: {
+        color: '#b19fff',
+        tooltip: `총 지출: ${total}원`
+      }
+    })
+  })
 
-  // 입력 초기화
-  categoryId.value = ''
-  amount.value = null
-  memo.value = ''
-  date.value = ''
+  return attr
+})
+
+// 날짜 선택
+const selectDate = (day: Date) => {
+  selectedDate.value = dayjs(day).format('YYYY-MM-DD')
 }
+
+// 이번 달 총합
+const totalExpense = computed(() =>
+    expenseStore.expenses.reduce((sum, e) => sum + (e.amount || 0), 0)
+)
+const totalIncome = 0 // 수입 데이터가 있다면 계산
+
+onMounted(async () => {
+  await fetchCategories()
+  await expenseStore.fetchExpenses()
+})
 </script>
+
+<style scoped>
+.calendar-container {
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.vc-pane {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.vc-day-content {
+  position: relative;
+  min-height: 60px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  font-size: 12px;
+}
+
+.expense-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #b19fff;
+  margin-top: 2px;
+}
+
+.card {
+  padding: 10px;
+  border-radius: 12px;
+  background-color: #fff;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.text-gray-500 {
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+</style>

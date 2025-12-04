@@ -2,7 +2,8 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import { createPinia } from 'pinia'
 import router from './router'
-import './styles/index.css'
+import '@/styles/index.css'
+import '@/styles/tailwind.css'
 import VCalendar from 'v-calendar'
 
 const app = createApp(App)

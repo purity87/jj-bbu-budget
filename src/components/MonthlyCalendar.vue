@@ -1,104 +1,153 @@
 <template>
-  <div class="pt-4">
-    <h2>이번 달 달력</h2>
-
-    <!-- 로딩 & 에러 -->
-    <div v-if="expenseStore.loading">로딩 중...</div>
-    <div v-else-if="expenseStore.error" class="text-red-500">{{ expenseStore.error }}</div>
-
-    <!-- 달력 -->
-    <div v-else class="calendar-container">
-      <v-calendar
-          is-expanded
-          :attributes="calendarAttributes"
-          :min-date="startOfMonth"
-          :max-date="endOfMonth"
-          @dayclick="selectDate"
-      />
+  <div class="w-full px-4 pt-2">
+    <!-- 상단 연도/월 -->
+    <div class="text-center text-lg font-bold mb-2">
+      {{ year }}년 {{ month }}월
     </div>
 
-    <!-- 선택 날짜 상세 -->
-    <div v-if="selectedDateExpenses.length > 0" class="mt-4">
-      <h3>{{ selectedDate }} 상세 지출</h3>
-      <div v-for="exp in selectedDateExpenses" :key="exp.id" class="card mb-2">
-        <p>{{ categoriesMap[exp.category_id] || 'Unknown' }} - {{ exp.amount }}원</p>
-        <p class="text-gray-500">{{ exp.memo || '-' }}</p>
+    <!-- 요일 헤더 -->
+    <div class="grid grid-cols-7 text-center text-sm text-gray-600 mb-2">
+      <div v-for="(d, i) in weekdays" :key="i">{{ d }}</div>
+    </div>
+
+    <!-- 달력 본문 -->
+    <div class="grid grid-cols-7 gap-y-3">
+      <!-- 앞쪽 공백 -->
+      <div
+          v-for="n in startBlank"
+          :key="'b' + n"
+          class="h-12"
+      ></div>
+
+      <!-- 날짜 렌더링 -->
+      <div
+          v-for="day in daysInMonth"
+          :key="day"
+          @click="selectDay(day)"
+          class="relative h-12 flex flex-col items-center justify-center cursor-pointer"
+      >
+        <!-- 선택된 날짜 스타일 -->
+        <div
+            class="w-9 h-9 flex items-center justify-center rounded-full"
+            :class="{
+            'bg-purple-300 text-white font-bold': selectedDate === day,
+            'text-red-500': isSunday(day),
+            'text-gray-500': isSaturday(day)
+          }"
+        >
+          {{ day }}
+        </div>
+
+        <!-- 해당 날짜의 지출 카테고리 점 표시 -->
+        <div class="flex gap-[2px] mt-1">
+          <div
+              v-for="(dot, idx) in getDots(day)"
+              :key="idx"
+              class="w-2 h-2 rounded-full"
+              :style="{ backgroundColor: dot }"
+          ></div>
+        </div>
       </div>
     </div>
 
-    <div v-else-if="selectedDate" class="text-gray-500 mt-2">
-      선택한 날짜에 지출이 없습니다.
-    </div>
+    <!-- 하단 선택된 날짜 상세 -->
+    <div v-if="selectedExpenses.length > 0" class="mt-4 border-t pt-4">
+      <h3 class="font-bold mb-2">
+        {{ year }}.{{ month }}.{{ selectedDate }} 상세
+      </h3>
 
-    <!-- 이번 달 총합 -->
-    <div class="mt-4 p-4 bg-gray-100 rounded">
-      <p>이번 달 총 수입: {{ totalIncome }}원</p>
-      <p>이번 달 총 지출: {{ totalExpense }}원</p>
+      <div
+          v-for="item in selectedExpenses"
+          :key="item.id"
+          class="flex justify-between py-2 border-b"
+      >
+        <div class="flex items-center gap-1">
+          <span class="font-medium">{{ item.category_name }}</span>
+          <span class="text-gray-500 text-sm">({{ item.memo }})</span>
+        </div>
+        <div class="font-bold">{{ item.amount.toLocaleString() }}원</div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import dayjs from 'dayjs'
+import { ref, onMounted, computed } from 'vue'
 import { useExpenseStore } from '@/stores/expenseStore'
 import { useCategories } from '@/composables/useCategories'
 
+/* ----------------------------------------------------------
+   캘린더 날짜 계산 로직
+---------------------------------------------------------- */
+const today = new Date()
+const year = today.getFullYear()
+const month = today.getMonth() + 1
+
+const firstDay = new Date(year, month - 1, 1)
+const lastDay = new Date(year, month, 0)
+
+const startBlank = firstDay.getDay() // 앞 공백 수 (일:0)
+const daysInMonth = lastDay.getDate()
+
+const weekdays = ['일', '월', '화', '수', '목', '금', '토']
+
+/* ----------------------------------------------------------
+   스토어 데이터
+---------------------------------------------------------- */
 const expenseStore = useExpenseStore()
 const { categories, fetchCategories } = useCategories()
 
-const selectedDate = ref<string | null>(null)
-const startOfMonth = dayjs().startOf('month').toDate()
-const endOfMonth = dayjs().endOf('month').toDate()
-
-// category_id → name 매핑
-const categoriesMap = computed(() => {
-  const map: Record<number, string> = {}
-  categories.value.forEach(c => { map[c.id] = c.name })
-  return map
-})
-
-// 선택 날짜의 지출
-const selectedDateExpenses = computed(() => {
-  if (!selectedDate.value) return []
-  return expenseStore.expenses.filter(e => e.date === selectedDate.value)
-})
-
-// 달력 dot 표시 (총 지출)
-const calendarAttributes = computed(() => {
-  const attr: any[] = []
-
-  // 날짜별 지출 합계 계산
-  const dailyExpenseMap: Record<string, number> = {}
-  expenseStore.expenses.forEach(e => {
-    if (!dailyExpenseMap[e.date]) dailyExpenseMap[e.date] = 0
-    dailyExpenseMap[e.date] += e.amount || 0
-  })
-
-  Object.entries(dailyExpenseMap).forEach(([date, total]) => {
-    attr.push({
-      key: date,
-      dates: new Date(date),
-      dot: {
-        color: '#b19fff',
-        tooltip: `총 지출: ${total}원`
-      }
-    })
-  })
-
-  return attr
-})
-
 // 날짜 선택
-const selectDate = (day: Date) => {
-  selectedDate.value = dayjs(day).format('YYYY-MM-DD')
+const selectedDate = ref<number | null>(null)
+
+/* category_id → category_name 매핑 */
+const expensesWithCategory = computed(() => {
+  return expenseStore.expenses.map(exp => ({
+    ...exp,
+    category_name: categories.value.find(c => c.id === exp.category_id)?.name || '기타',
+  }))
+})
+
+/* 선택한 날짜의 지출 */
+const selectedExpenses = computed(() => {
+  if (!selectedDate.value) return []
+  const dateString = `${year}-${String(month).padStart(2, '0')}-${String(selectedDate.value).padStart(2, '0')}`
+  return expensesWithCategory.value.filter(e => e.date.startsWith(dateString))
+})
+
+/* 날짜 클릭 */
+function selectDay(day: number) {
+  selectedDate.value = day
 }
 
-// 이번 달 총합
-const totalExpense = computed(() =>
-    expenseStore.expenses.reduce((sum, e) => sum + (e.amount || 0), 0)
-)
-const totalIncome = 0 // 수입 데이터가 있다면 계산
+/* 요일 체크 */
+function isSunday(day: number) {
+  const d = new Date(year, month - 1, day)
+  return d.getDay() === 0
+}
+function isSaturday(day: number) {
+  const d = new Date(year, month - 1, day)
+  return d.getDay() === 6
+}
+
+/* ----------------------------------------------------------
+   날짜의 dot 표시용 카테고리 색상
+---------------------------------------------------------- */
+const categoryColors: Record<string, string> = {
+  '식비': '#E57373',
+  '월급': '#4CAF50',
+  '쇼핑': '#9575CD',
+  '여행': '#64B5F6',
+  '기타': '#9E9E9E'
+}
+
+// 특정 날짜의 dot 색상 목록 반환
+function getDots(day: number) {
+  const dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+  const items = expensesWithCategory.value.filter(e => e.date.startsWith(dateString))
+
+  return items.map(e => categoryColors[e.category_name] || '#ccc')
+}
 
 onMounted(async () => {
   await fetchCategories()
@@ -107,44 +156,4 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.calendar-container {
-  max-width: 100%;
-  margin: 0 auto;
-}
-
-.vc-pane {
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 10px;
-}
-
-.vc-day-content {
-  position: relative;
-  min-height: 60px;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  align-items: center;
-  font-size: 12px;
-}
-
-.expense-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background-color: #b19fff;
-  margin-top: 2px;
-}
-
-.card {
-  padding: 10px;
-  border-radius: 12px;
-  background-color: #fff;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-}
-
-.text-gray-500 {
-  color: #6b7280;
-  font-size: 0.875rem;
-}
 </style>

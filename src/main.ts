@@ -6,8 +6,12 @@ import '@/styles/index.css'
 import '@/styles/tailwind.css'
 import VCalendar from 'v-calendar'
 
+const pinia = createPinia()
+
+
 const app = createApp(App)
 app.use(createPinia())
 app.use(router)
+app.use(pinia)
 app.use(VCalendar, {})
 app.mount('#app')

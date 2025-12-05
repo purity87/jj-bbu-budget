@@ -1,6 +1,7 @@
 <template>
   <div class="pt-4" v-if="userStore.currentBudget">
-    <h2>지출 추가</h2>
+    <h2>수입 추가</h2>
+    <h2>수입 추가</h2>
     <div class="card">
 
       <!-- 카테고리 -->
@@ -11,7 +12,7 @@
 
       <!-- 금액 -->
       <input v-model="amount" type="number" placeholder="금액" class="input mb-2" />
-ㅇ
+
       <!-- 결제수단 -->
       <select v-model="paymentMethod" class="input mb-2">
         <option value="" disabled>결제 수단 선택</option>
@@ -67,13 +68,13 @@ onMounted(async () => {
   const { data, error: catError } = await supabase
       .from('categories')
       .select('*')
-      .eq('type', '지출')
+      .eq('type', '수입')
 
   if (!catError && data) categories.value = data
   else console.error('카테고리 로드 실패', catError)
 })
 
-// 지출 추가
+// 수입 추가
 const addExpense = async () => {
   if (!userStore.currentBudget) {
     error.value = '선택된 가계부가 없습니다.'
@@ -97,12 +98,12 @@ const addExpense = async () => {
     }
 
     await expenseStore.addExpense(expenseData)
-    console.log('지출 추가 성공')
+    console.log('수입 추가 성공')
 
     await router.push('/home')
   } catch (err) {
-    console.error('지출 추가 실패', err)
-    error.value = '지출 추가에 실패했습니다.'
+    console.error('수입 추가 실패', err)
+    error.value = '수입 추가에 실패했습니다.'
   }
 
   categoryId.value = ''

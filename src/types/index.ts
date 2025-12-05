@@ -9,3 +9,26 @@ export interface Expense {
     created_by?: string         // uuid
     created_at?: string         // ISO datetime
 }
+
+// Supabase 인증 유저 타입
+export interface AuthUser {
+    id: string
+    email: string
+    [key: string]: any
+}
+
+export interface BudgetUser {
+    id: string
+    role: 'admin' | 'user'
+    user_id: string
+    budget_id: string
+    created_at: string
+}
+
+export interface Budget {
+    id: string
+    name: string
+    created_at: string
+    role?: string               // 일반 사용자일 때 자신의 역할
+    budget_users: BudgetUser[] // 참여자 목록
+}
